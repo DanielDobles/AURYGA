@@ -173,9 +173,14 @@ def compile_and_download(settings: Settings):
     try:
         controller.connect()
         controller.upload_workspace(WORKSPACE)
-        controller.compile_faust()
-        controller.install_ugens()
-        controller.render_nrt()
+        
+        # Render stems
+        for stem_py in WORKSPACE.glob("seq_*.py"):
+            controller.render_python(stem_py.name)
+            
+        # Render master
+        controller.render_python("master.py")
+        
         controller.package_output()
         controller.download_results(RESULTS)
     finally:
@@ -202,6 +207,14 @@ def main():
                 deploy_gpus(settings)
         except Exception:
             deploy_gpus(settings)
+            
+        # Compile the vault and install Python audio stack
+        console.print("[dim]Checking Audio Ecosystem state...[/dim]")
+        audio_ctrl = DropletController(settings.DROPLET_IP, str(settings.ssh_key_resolved))
+        audio_ctrl.connect()
+        audio_ctrl.install_python_audio() # Ensure pedalboard/dawdreamer
+        audio_ctrl.deploy_vault()
+        audio_ctrl.close()
 
         orchestrate_agents(settings, user_prompt)
         compile_and_download(settings)

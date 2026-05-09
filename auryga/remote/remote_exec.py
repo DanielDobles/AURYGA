@@ -97,14 +97,18 @@ class DropletController:
         self._exec("rm -rf /root/arcaios_run/* 2>/dev/null || true")
         self._exec("truncate -s 0 $(docker inspect --format='{{.LogPath}}' vllm-coder vllm-reasoning 2>/dev/null) 2>/dev/null || true")
 
+    def install_python_audio(self) -> None:
+        console.print("[bold cyan]Installing Python Audio Ecosystem (Pedalboard, DawDreamer)...[/bold cyan]")
+        # Install system dependencies for audio processing
+        self._exec("apt-get update && apt-get install -y libasound2-dev libjack-jackd2-dev", tips=["Installing ALSA/JACK headers..."])
+        self._exec("pip install pedalboard dawdreamer numpy scipy", tips=["Installing Python packages via pip..."])
+        console.print("[green]Python Audio Ecosystem ready.[/green]")
+
     def upload_workspace(self, local_dir: Path) -> None:
         assert self._sftp is not None
         files = [f for f in local_dir.iterdir() if f.is_file()]
-        
-        vault_dir = Path("auryga/vault")
-        vault_files = [f for f in vault_dir.iterdir() if f.is_file()] if vault_dir.exists() else []
-        
-        all_files = files + vault_files
+        if not files:
+            raise FileNotFoundError(f"No files to upload in {local_dir}")
 
         self._mkdir_remote(self.REMOTE_BASE)
         self.clean_remote_cache()
@@ -115,47 +119,75 @@ class DropletController:
             BarColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("Uploading files", total=len(all_files))
-            for f in all_files:
+            task = progress.add_task("Uploading workspace", total=len(files))
+            for f in files:
                 remote = self.REMOTE_BASE / f.name
                 self._sftp.put(str(f), str(remote))
                 progress.update(task, advance=1, description=f"Uploading {f.name}")
 
-        console.print(f"[green]Uploaded {len(all_files)} files → {self.REMOTE_BASE}[/green]")
+        console.print(f"[green]Uploaded {len(files)} files → {self.REMOTE_BASE}[/green]")
 
-    def compile_faust(self) -> None:
-        console.print("[bold cyan]Compiling Faust DSP Vault...[/bold cyan]")
+    def deploy_vault(self) -> None:
+        console.print("[bold cyan]Deploying DSP Vault to Droplet (One-Time Compilation)...[/bold cyan]")
+        assert self._sftp is not None
+        
+        vault_dir = Path("auryga/vault")
+        if not vault_dir.exists():
+            return
+            
+        vault_files = [f for f in vault_dir.iterdir() if f.is_file()]
+        
+        self._mkdir_remote(self.REMOTE_BASE)
+        
+        for f in vault_files:
+            remote = self.REMOTE_BASE / f.name
+            self._sftp.put(str(f), str(remote))
+            
         out = self._exec(f"ls {self.REMOTE_BASE}/Auryga*.dsp 2>/dev/null || echo NONE")
         if "NONE" in out:
-            console.print("[yellow]No vault DSP files found — skipping Faust compilation[/yellow]")
             return
 
         dsp_files = [line.strip() for line in out.strip().splitlines() if line.strip().endswith(".dsp")]
         for dsp in dsp_files:
+            # Skip empty files that might have been created by failed curls
+            size_check = self._exec(f"wc -c < {dsp}")
+            try:
+                if int(size_check.strip()) < 10:
+                    continue
+            except:
+                pass
+            
             name = PurePosixPath(dsp).stem
+            # Check if already installed
+            ext_check = self._exec(f"ls /root/.local/share/SuperCollider/Extensions/{name}.so 2>/dev/null || echo MISSING")
+            if "MISSING" not in ext_check:
+                console.print(f"  [dim]✓ {name}.so already installed in SuperCollider Extensions.[/dim]")
+                continue
+                
             tips = [
                 f"Compiling Vault Engine: {name}.dsp...",
                 f"Translating Faust architecture to LLVM...",
-                f"Generating UGen class '{name}' for SuperCollider...",
-                f"Optimizing audio subgraphs for ROCm..."
+                f"Generating UGen class '{name}' for SuperCollider..."
             ]
-            self._exec(
-                f"cd {self.REMOTE_BASE} && faust2supercollider {dsp}",
-                timeout=300,
-                tips=tips
-            )
+            self._exec(f"cd {self.REMOTE_BASE} && faust2supercollider {dsp}", timeout=300, tips=tips)
             console.print(f"  [green]✓ {name}.dsp compiled to UGen.[/green]")
+            
+        # Move to extensions
+        self._exec("mkdir -p /root/.local/share/SuperCollider/Extensions")
+        self._exec(f"mv {self.REMOTE_BASE}/*.so {self.REMOTE_BASE}/*.sc /root/.local/share/SuperCollider/Extensions/ 2>/dev/null || true")
+        console.print("[green]Vault deployment complete.[/green]")
 
-    def install_ugens(self) -> None:
-        console.print("[bold cyan]Installing UGens to SC Extensions...[/bold cyan]")
-        self._mkdir_remote(self.SC_EXTENSIONS)
-        self._exec(
-            f"find {self.REMOTE_BASE} -name '*.so' -exec cp {{}} {self.SC_EXTENSIONS}/ \\;"
-        )
-        self._exec(
-            f"find {self.REMOTE_BASE} -name '*.sc' -not -name '*.scd' -exec cp {{}} {self.SC_EXTENSIONS}/ \\;"
-        )
-        console.print("[green]UGens installed[/green]")
+
+    def render_python(self, script_name: str) -> None:
+        console.print(f"[bold cyan]Executing Python Render: {script_name}[/bold cyan]")
+        tips = [
+            f"Loading {script_name} into Python interpreter...",
+            "Initializing DawDreamer Render Engine...",
+            "Applying Pedalboard effects chain...",
+            "Writing WAV buffer to disk..."
+        ]
+        self._exec(f"cd {self.REMOTE_BASE} && python3 {script_name}", timeout=600, tips=tips)
+        console.print(f"  [green]✓ {script_name} completed.[/green]")
 
     def render_nrt(self) -> None:
         console.print("[bold cyan]Starting Offline Rendering Engine (NRT)...[/bold cyan]")
