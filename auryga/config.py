@@ -59,6 +59,7 @@ def build_coder_llm(settings: Settings) -> LLM:
         model=f"hosted_vllm/{settings.VLLM_MODEL_NAME}",
         base_url=settings.VLLM_API_BASE,
         api_key="not-needed",
+        tool_call_parser="hermes",
     )
 
 
@@ -67,6 +68,7 @@ def build_reasoning_llm(settings: Settings) -> LLM:
         model=f"hosted_vllm/{settings.VLLM_REASONING_MODEL}",
         base_url=settings.VLLM_REASONING_BASE,
         api_key="not-needed",
+        tool_call_parser="hermes",
     )
 
 

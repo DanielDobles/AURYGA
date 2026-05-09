@@ -47,11 +47,17 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
             "   - Chorus or phaser effect\n"
             "   - Filter with LFO modulation\n"
             "   - Frequency and gate input parameters\n\n"
-            "CRITICAL RULES:\n"
-            "- Every file MUST start with: import(\"stdfaust.lib\");\n"
-            "- Every file MUST end with: process = ...;\n"
-            "- ZERO sequencing or timing code\n"
-            "- Use write_file tool for each file separately"
+            "CRITICAL FAUST SYNTAX RULES (NO HALLUCINATIONS):\n"
+            "- Oscillators: Use `os.sawtooth(freq)`, `os.osc(freq)`, or `no.noise`. Do NOT invent parameters.\n"
+            "- Envelopes: Use `en.adsr(attack, decay, sustain, release, gate)`. There is NO `envelope()` function.\n"
+            "- Filters: Use `fi.lowpass(order, cutoff)`. DO NOT pass the signal as an argument! Faust is functional, you must pipe it.\n"
+            "- Smoothing: Use `si.smoo`. Pipe into it like `... : si.smoo : ...`.\n"
+            "- Routing: Faust uses the pipe ` : ` for serial, ` , ` for parallel. Example: `process = os.sawtooth(freq) : fi.lowpass(2, cutoff) * en.adsr(0.1,0.1,0.5,0.1,gate);`\n"
+            "- Every file MUST start with: `import(\"stdfaust.lib\");`\n"
+            "- Every file MUST end with a valid `process = ...;` block.\n"
+            "- ZERO sequencing or timing code.\n"
+            "- MANDATORY: Use the `write_file` tool for EACH of the 4 .dsp files separately. "
+            "You MUST call the tool 4 times. Do NOT just output the code in the response."
         ),
         expected_output="Four .dsp files (kick.dsp, snare.dsp, bass.dsp, synth.dsp) written to workspace.",
         agent=agents["sound_designer"],
@@ -84,7 +90,8 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
             "- END every file with: 0.exit;\n"
             "- Do NOT use Server.default, s.boot, or any real-time server commands\n"
             "- Do NOT use Pbind, Pdef, or Pattern classes (they require a running server)\n"
-            "- Use write_file tool for each file"
+            "- MANDATORY: Use the `write_file` tool for EACH of the 4 .scd files separately. "
+            "You MUST call the tool 4 times."
         ),
         expected_output="Four seq_*.scd files written to workspace.",
         agent=agents["producer"],
@@ -121,7 +128,8 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
             "  headerFormat: \"wav\", sampleFormat: \"int24\"\n"
             "  options: configured ServerOptions\n\n"
             "- End with 0.exit;\n\n"
-            "Write using write_file tool with filename 'master.scd'."
+            "MANDATORY: Use the `write_file` tool with filename 'master.scd'. "
+            "Do NOT just output the code in the response."
         ),
         expected_output="master.scd written to workspace with complete NRT mix and stem rendering.",
         agent=agents["mix_engineer"],
@@ -135,6 +143,8 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
             "FOR EACH .dsp FILE CHECK:\n"
             "- import(\"stdfaust.lib\"); is present\n"
             "- process = ... ; exists\n"
+            "- STRICT SYNTAX: Verify NO hallucinated functions are used. Envelopes MUST be `en.ar` or `en.adsr`. Filters MUST be `fi.lowpass`. Oscillators MUST be `os.sawtooth` or `os.osc`. NO `envelope()`, NO `ef.lf()`, NO `os.saw~`.\n"
+            "- ROUTING: Check for correct piping ` : `. Do NOT allow arguments passed into signal ports like `fi.lowpass(2, cutoff, signal)`.\n"
             "- All parentheses () are balanced\n"
             "- All braces {} are balanced\n"
             "- No markdown artifacts (```, #, **) remain\n"

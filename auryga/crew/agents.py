@@ -31,7 +31,7 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
     )
 
     sound_designer = Agent(
-        role="Faust DSP Sound Designer",
+        role="Principal DSP Architect & Faust/JUCE C++ Expert",
         goal=(
             "Read song_matrix.json and write FOUR separate Faust .dsp files: "
             "kick.dsp, snare.dsp, bass.dsp, synth.dsp. "
@@ -42,18 +42,16 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
             "Each file must compile standalone with faust2supercollider."
         ),
         backstory=(
-            "You are a DSP engineer who writes production-grade Faust code. "
+            "You are a Senior Audio Engineer holding a Master's degree in Software Engineering. "
+            "You are a world-class expert in DSP mathematics, C++ audio plugin development (JUCE), "
+            "and specifically the functional language Faust. "
             "You design sounds characteristic of Melodic Techno: "
-            "punchy analog-modeled kicks with pitch envelope and saturation, "
-            "layered noise snares with filter sweeps, "
-            "detuned saw basses with subtle movement, "
-            "and lush polysynth pads with chorus and filtering. "
-            "You always import the Faust standard libraries. "
-            "You write correct, compilable Faust — no pseudocode. "
+            "punchy analog-modeled kicks, layered snares, detuned saw basses, and lush pads. "
+            "You never hallucinate syntax because you possess absolute encyclopedic knowledge of stdfaust.lib. "
             "Every .dsp file must have: import(\"stdfaust.lib\"); and a process = ... ; block."
         ),
         tools=[_writer, _reader],
-        llm=coder_llm,
+        llm=reasoning_llm,
         verbose=True,
     )
 
@@ -80,7 +78,7 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
             "Your patterns are tight 16th-note grids typical of Melodic Techno."
         ),
         tools=[_writer, _reader],
-        llm=coder_llm,
+        llm=reasoning_llm,
         verbose=True,
     )
 
@@ -112,12 +110,12 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
             "Your code is meticulous — every synth node gets an explicit ID to avoid conflicts."
         ),
         tools=[_writer, _reader, _lister],
-        llm=coder_llm,
+        llm=reasoning_llm,
         verbose=True,
     )
 
     qa_linter = Agent(
-        role="Code QA Auditor for Faust and SuperCollider",
+        role="Lead C++/DSP Auditor & Code Gatekeeper",
         goal=(
             "Read ALL files in ./workspace/. For each .dsp file verify: "
             "1) import(\"stdfaust.lib\"); is present, "
@@ -129,16 +127,19 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
             "3) All opened braces/parens/brackets are closed, "
             "4) No undefined variable references (basic check). "
             "If any issues are found, fix them and rewrite the corrected file using write_file. "
-            "Report all fixes made."
+            "Report all fixes made. YOU ARE THE GATEKEEPER BEFORE COMPILATION."
         ),
         backstory=(
-            "You are a pedantic code auditor. You catch missing semicolons in Faust, "
+            "You are a pedantic Lead Code Auditor and Audio Systems Architect. "
+            "You hold a Master's in Software Engineering and have spent a decade auditing C++, JUCE, "
+            "and Faust DSP codebases for mission-critical audio engines. "
+            "You catch hallucinated functions in Faust (like 'envelope()' instead of 'en.adsr'), "
             "unmatched braces in SuperCollider, and missing 0.exit calls that would hang sclang. "
             "You fix problems in-place — you don't just report them. "
-            "You understand both Faust and SuperCollider syntax at a deep level."
+            "You understand both Faust and SuperCollider syntax at an absolute, flawless level."
         ),
         tools=[_writer, _reader, _lister],
-        llm=coder_llm,
+        llm=reasoning_llm,
         verbose=True,
     )
 

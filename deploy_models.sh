@@ -22,8 +22,8 @@ docker run -d \
     vllm serve Qwen/Qwen2.5-Coder-32B-Instruct \
         --host 0.0.0.0 \
         --port 8000 \
-        --gpu-memory-utilization 0.40 \
-        --max-model-len 4096 \
+        --gpu-memory-utilization 0.42 \
+        --max-model-len 8192 \
         --dtype float16 \
         --enable-auto-tool-choice \
         --tool-call-parser hermes \
@@ -55,8 +55,8 @@ docker run -d \
     vllm serve Qwen/Qwen3-32B \
         --host 0.0.0.0 \
         --port 8001 \
-        --gpu-memory-utilization 0.40 \
-        --max-model-len 4096 \
+        --gpu-memory-utilization 0.42 \
+        --max-model-len 8192 \
         --dtype float16 \
         --enable-auto-tool-choice \
         --tool-call-parser hermes \
