@@ -51,7 +51,10 @@ class DropletController:
     def _exec(self, cmd: str, timeout: int = 600, tips: list[str] | None = None) -> str:
         import time
         assert self._client is not None, "Call connect() first"
-        _, stdout, stderr = self._client.exec_command(cmd, timeout=timeout)
+        
+        # Prevent TCP window buffer deadlock by redirecting all output to a file
+        safe_cmd = f"({cmd}) > /tmp/arcaios_cmd.log 2>&1"
+        _, stdout, _ = self._client.exec_command(safe_cmd, timeout=timeout)
         
         if tips:
             status_text = tips[0]
@@ -70,10 +73,13 @@ class DropletController:
                     time.sleep(0.5)
 
         exit_code = stdout.channel.recv_exit_status()
-        out = stdout.read().decode("utf-8", errors="replace")
-        err = stderr.read().decode("utf-8", errors="replace")
+        
+        # Retrieve the buffered output
+        _, cat_out, _ = self._client.exec_command("cat /tmp/arcaios_cmd.log")
+        out = cat_out.read().decode("utf-8", errors="replace")
+        
         if exit_code != 0:
-            raise RemoteCommandError(cmd, exit_code, err)
+            raise RemoteCommandError(cmd, exit_code, out)
         return out
 
     def _mkdir_remote(self, remote_path: PurePosixPath) -> None:

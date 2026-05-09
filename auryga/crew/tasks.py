@@ -23,80 +23,48 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
         agent=agents["theorist"],
     )
 
-    design_task = Task(
-        description=(
-            "Read song_matrix.json using the read_file tool.\n"
-            "Then write FOUR separate Faust .dsp files:\n\n"
-            "1. kick.dsp — Analog-modeled kick drum:\n"
-            "   - Sine oscillator with pitch envelope (150Hz → 45Hz)\n"
-            "   - Amplitude envelope (fast attack, ~200ms decay)\n"
-            "   - Soft clipping / saturation for punch\n"
-            "   - Gate input parameter: gate = checkbox(\"gate\");\n\n"
-            "2. snare.dsp — Layered snare:\n"
-            "   - Noise burst through resonant bandpass filter\n"
-            "   - Sine body at ~180Hz\n"
-            "   - Combined with amplitude envelope\n"
-            "   - Gate input parameter\n\n"
-            "3. bass.dsp — Melodic bass:\n"
-            "   - Detuned sawtooth oscillators\n"
-            "   - Low-pass filter with envelope\n"
-            "   - Frequency input parameter: freq = hslider(\"freq\", 55, 20, 500, 0.01);\n"
-            "   - Gate input parameter\n\n"
-            "4. synth.dsp — Melodic pad/lead:\n"
-            "   - Multiple detuned oscillators\n"
-            "   - Chorus or phaser effect\n"
-            "   - Filter with LFO modulation\n"
-            "   - Frequency and gate input parameters\n\n"
-            "CRITICAL FAUST SYNTAX RULES (NO HALLUCINATIONS):\n"
-            "- Oscillators: Use `os.sawtooth(freq)`, `os.osc(freq)`, or `no.noise`. Do NOT invent parameters.\n"
-            "- Envelopes: Use `en.adsr(attack, decay, sustain, release, gate)`. There is NO `envelope()` function.\n"
-            "- Filters: Use `fi.lowpass(order, cutoff)`. DO NOT pass the signal as an argument! Faust is functional, you must pipe it.\n"
-            "- Smoothing: Use `si.smoo`. Pipe into it like `... : si.smoo : ...`.\n"
-            "- Routing: Faust uses the pipe ` : ` for serial, ` , ` for parallel. Example: `process = os.sawtooth(freq) : fi.lowpass(2, cutoff) * en.adsr(0.1,0.1,0.5,0.1,gate);`\n"
-            "- Every file MUST start with: `import(\"stdfaust.lib\");`\n"
-            "- Every file MUST end with a valid `process = ...;` block.\n"
-            "- ZERO sequencing or timing code.\n"
-            "- MANDATORY: Use the `write_file` tool for EACH of the 4 .dsp files separately. "
-            "You MUST call the tool 4 times. Do NOT just output the code in the response."
-        ),
-        expected_output="Four .dsp files (kick.dsp, snare.dsp, bass.dsp, synth.dsp) written to workspace.",
-        agent=agents["sound_designer"],
-        context=[theory_task],
-    )
+    design_tasks = []
+    produce_tasks = []
+    instruments = ["kick", "snare", "bass", "synth"]
 
-    produce_task = Task(
-        description=(
-            "Read song_matrix.json and all .dsp files from workspace.\n"
-            "Write FOUR SuperCollider .scd files for NRT sequencing:\n\n"
-            "1. seq_kick.scd — Kick pattern:\n"
-            "   - SynthDef that wraps the Faust kick UGen\n"
-            "   - Score with kick triggers on beats (4/4 pattern)\n"
-            "   - Use Score.recordNRT to render to 'kick_stem.wav'\n\n"
-            "2. seq_snare.scd — Snare pattern:\n"
-            "   - Snare hits on beats 2 and 4\n"
-            "   - Plus ghost notes on some 16th subdivisions\n\n"
-            "3. seq_bass.scd — Bass sequence:\n"
-            "   - Follow chord progression from song_matrix.json\n"
-            "   - Rhythmic pattern (not sustained notes)\n\n"
-            "4. seq_synth.scd — Synth/pad sequence:\n"
-            "   - Chord voicings from song_matrix.json\n"
-            "   - Longer sustain, pad-style\n\n"
-            "CRITICAL RULES FOR EVERY .scd FILE:\n"
-            "- Calculate beat duration: beatDur = 60 / BPM\n"
-            "- Use Score([ ... ]) with explicit OSC messages:\n"
-            "  [time, [\\s_new, \\synthName, nodeID, 0, 0, \\param, value]]\n"
-            "- Configure ServerOptions: numOutputBusChannels = 2, sampleRate = 44100\n"
-            "- Call Score.recordNRT(oscFilePath, outputFilePath, ...)\n"
-            "- END every file with: 0.exit;\n"
-            "- Do NOT use Server.default, s.boot, or any real-time server commands\n"
-            "- Do NOT use Pbind, Pdef, or Pattern classes (they require a running server)\n"
-            "- MANDATORY: Use the `write_file` tool for EACH of the 4 .scd files separately. "
-            "You MUST call the tool 4 times."
-        ),
-        expected_output="Four seq_*.scd files written to workspace.",
-        agent=agents["producer"],
-        context=[theory_task, design_task],
-    )
+    for inst in instruments:
+        design_tasks.append(Task(
+            description=(
+                f"Read song_matrix.json. Write the Faust .dsp file for '{inst}.dsp'.\n"
+                f"MANDATORY METADATA: You MUST include `declare name \"{inst}\";` right after the import. This is strictly required for SuperCollider binding.\n"
+                "CRITICAL FAUST SYNTAX RULES (NO HALLUCINATIONS):\n"
+                "- Oscillators: Use `os.sawtooth(freq)`, `os.osc(freq)`, or `no.noise`.\n"
+                "- Envelopes: Use `en.adsr(attack, decay, sustain, release, gate)`. NO `envelope()`.\n"
+                "- Filters: Use `fi.lowpass(order, cutoff)`. Pipe it, do not pass signal as arg.\n"
+                "- Smoothing: Use `si.smoo`.\n"
+                "- Routing: `process = os.sawtooth(freq) : fi.lowpass(2, cutoff) * en.adsr(0.1,0.1,0.5,0.1,gate);`\n"
+                "- Every file MUST start with: `import(\"stdfaust.lib\");`\n"
+                "- Every file MUST end with a valid `process = ...;` block.\n"
+                f"MANDATORY: Use the `write_file` tool to save exactly ONE file named '{inst}.dsp'."
+            ),
+            expected_output=f"{inst}.dsp written to workspace.",
+            agent=agents["sound_designer"],
+            context=[theory_task],
+        ))
+
+        produce_tasks.append(Task(
+            description=(
+                f"Read song_matrix.json and {inst}.dsp. Write the SuperCollider .scd file for 'seq_{inst}.scd'.\n"
+                f"1. SynthDef MUST wrap the Faust UGen named EXACTLY '{inst}' (from the declare name directive).\n"
+                "2. Create a rhythmic sequence based on song_matrix.json.\n"
+                "CRITICAL RULES:\n"
+                "- Calculate beat duration: beatDur = 60 / BPM\n"
+                "- Use Score([ ... ]) with explicit OSC messages.\n"
+                "- Configure ServerOptions: numOutputBusChannels = 2, sampleRate = 44100\n"
+                f"- Call Score.recordNRT(oscFilePath, '{inst}_stem.wav', ...)\n"
+                "- END the file with: 0.exit;\n"
+                "- Do NOT use Pbind, Pdef, or Pattern classes.\n"
+                f"MANDATORY: Use the `write_file` tool to save exactly ONE file named 'seq_{inst}.scd'."
+            ),
+            expected_output=f"seq_{inst}.scd written to workspace.",
+            agent=agents["producer"],
+            context=[theory_task] + design_tasks,
+        ))
 
     mix_task = Task(
         description=(
@@ -105,101 +73,23 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
             "ARCHITECTURE:\n"
             "- ServerOptions: numOutputBusChannels = 10, sampleRate = 44100\n"
             "  Channels: 0-1 master, 2-3 kick, 4-5 bass, 6-7 snare, 8-9 synth\n\n"
-            "- SynthDef \\kick: Faust kick UGen → Out.ar(2, sig.dup)\n"
-            "- SynthDef \\snare: Faust snare UGen → Out.ar(6, sig.dup)\n"
-            "- SynthDef \\bass: Faust bass UGen → Out.ar(4, sig.dup)\n"
-            "- SynthDef \\synth: Faust synth UGen → Out.ar(8, sig.dup)\n\n"
             "- SynthDef \\masterBus (runs on group AFTER instruments):\n"
             "  a) Read kick from bus 2-3\n"
-            "  b) Read bass from bus 4-5, apply sidechain compression using Compander "
-            "     with kick as control signal (threshold: -20dB, ratio: 4:1)\n"
+            "  b) Read bass from bus 4-5, apply sidechain compression using Compander\n"
             "  c) Read snare from bus 6-7\n"
-            "  d) Read synth from bus 8-9, add FreeVerb2 (mix: 0.3, room: 0.7) "
-            "     and CombL delay (delaytime: 3/4 beat, decaytime: 2s)\n"
+            "  d) Read synth from bus 8-9, add FreeVerb2 and CombL delay\n"
             "  e) Sum all to stereo and write to bus 0-1\n"
-            "  f) Also pass-through each instrument bus to its output channel pair for stems\n\n"
-            "- Build a complete Score:\n"
-            "  - First message: allocate buses and groups\n"
-            "  - Schedule masterBus synth at time 0 (tail of group)\n"
-            "  - Schedule instrument synths following the song structure from song_matrix.json\n"
-            "  - Total duration = sum of all section bar counts × 4 × beatDur\n\n"
+            "  f) Also pass-through each instrument bus to its output channel pair\n\n"
             "- Call Score.recordNRT:\n"
             "  outputFilePath: \"master_10ch.wav\"\n"
-            "  headerFormat: \"wav\", sampleFormat: \"int24\"\n"
-            "  options: configured ServerOptions\n\n"
             "- End with 0.exit;\n\n"
-            "MANDATORY: Use the `write_file` tool with filename 'master.scd'. "
-            "Do NOT just output the code in the response."
+            "MANDATORY: Use the `write_file` tool with filename 'master.scd'."
         ),
         expected_output="master.scd written to workspace with complete NRT mix and stem rendering.",
         agent=agents["mix_engineer"],
-        context=[theory_task, design_task, produce_task],
+        context=[theory_task] + design_tasks + produce_tasks,
     )
 
-    qa_task = Task(
-        description=(
-            "Audit ALL files in ./workspace/.\n"
-            "Use list_workspace to get the file list, then read_file on each one.\n\n"
-            "FOR EACH .dsp FILE CHECK:\n"
-            "- import(\"stdfaust.lib\"); is present\n"
-            "- process = ... ; exists\n"
-            "- STRICT SYNTAX: Verify NO hallucinated functions are used. Envelopes MUST be `en.ar` or `en.adsr`. Filters MUST be `fi.lowpass`. Oscillators MUST be `os.sawtooth` or `os.osc`. NO `envelope()`, NO `ef.lf()`, NO `os.saw~`.\n"
-            "- ROUTING: Check for correct piping ` : `. Do NOT allow arguments passed into signal ports like `fi.lowpass(2, cutoff, signal)`.\n"
-            "- All parentheses () are balanced\n"
-            "- All braces {} are balanced\n"
-            "- No markdown artifacts (```, #, **) remain\n"
-            "- Semicolons terminate statements\n\n"
-            "FOR EACH .scd FILE CHECK:\n"
-            "- 0.exit; is present (CRITICAL — without it sclang hangs forever)\n"
-            "- All parentheses (), braces {}, brackets [] are balanced\n"
-            "- Score.recordNRT or Score.new is called\n"
-            "- ServerOptions is configured\n"
-            "- No markdown artifacts remain\n"
-            "- SynthDef names are quoted with backslash (\\name)\n\n"
-            "FOR song_matrix.json:\n"
-            "- Valid JSON (no trailing commas, no comments)\n\n"
-            "If ANY issue is found: fix it and rewrite the file using write_file.\n"
-            "Report a summary of all files checked and all fixes applied."
-        ),
-        expected_output="All files validated and corrected. Summary of checks and fixes.",
-        agent=agents["qa_linter"],
-        context=[design_task, produce_task, mix_task],
-    )
-
-    tasks = [theory_task, design_task, produce_task, mix_task, qa_task]
-
-    if "audio_critic" in agents:
-        audio_task = Task(
-            description=(
-                "After the remote pipeline has rendered the WAV files, "
-                "analyze the audio output.\n\n"
-                "Use list_workspace to find all .wav files.\n"
-                "For each WAV file, provide a structured analysis:\n\n"
-                "1. KICK ANALYSIS:\n"
-                "   - Punch and transient quality (1-10)\n"
-                "   - Sub-bass presence around 40-60Hz\n"
-                "   - Does it cut through the mix?\n\n"
-                "2. BASS ANALYSIS:\n"
-                "   - Harmonic richness and movement (1-10)\n"
-                "   - Sidechain ducking effectiveness\n"
-                "   - Frequency separation from kick\n\n"
-                "3. SNARE/PERCUSSION ANALYSIS:\n"
-                "   - Crispness and presence (1-10)\n"
-                "   - Groove and swing quality\n\n"
-                "4. SYNTH/PAD ANALYSIS:\n"
-                "   - Spatial quality and width (1-10)\n"
-                "   - Harmonic content and texture\n"
-                "   - Effect quality (reverb, delay)\n\n"
-                "5. OVERALL MIX:\n"
-                "   - Frequency balance (1-10)\n"
-                "   - Dynamic range\n"
-                "   - Does it sound like professional Melodic Techno?\n\n"
-                "Write your analysis using write_file with filename 'audio_critique.json'."
-            ),
-            expected_output="Structured audio analysis with scores for each element.",
-            agent=agents["audio_critic"],
-            context=[mix_task, qa_task],
-        )
-        tasks.append(audio_task)
+    tasks = [theory_task] + design_tasks + produce_tasks + [mix_task]
 
     return tasks

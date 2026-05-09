@@ -114,66 +114,11 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
         verbose=True,
     )
 
-    qa_linter = Agent(
-        role="Lead C++/DSP Auditor & Code Gatekeeper",
-        goal=(
-            "Read ALL files in ./workspace/. For each .dsp file verify: "
-            "1) import(\"stdfaust.lib\"); is present, "
-            "2) process = ... ; block exists, "
-            "3) All opened braces/parens are closed. "
-            "For each .scd file verify: "
-            "1) Score.recordNRT or Score.new is called, "
-            "2) 0.exit is present at the end, "
-            "3) All opened braces/parens/brackets are closed, "
-            "4) No undefined variable references (basic check). "
-            "If any issues are found, fix them and rewrite the corrected file using write_file. "
-            "Report all fixes made. YOU ARE THE GATEKEEPER BEFORE COMPILATION."
-        ),
-        backstory=(
-            "You are a pedantic Lead Code Auditor and Audio Systems Architect. "
-            "You hold a Master's in Software Engineering and have spent a decade auditing C++, JUCE, "
-            "and Faust DSP codebases for mission-critical audio engines. "
-            "You catch hallucinated functions in Faust (like 'envelope()' instead of 'en.adsr'), "
-            "unmatched braces in SuperCollider, and missing 0.exit calls that would hang sclang. "
-            "You fix problems in-place — you don't just report them. "
-            "You understand both Faust and SuperCollider syntax at an absolute, flawless level."
-        ),
-        tools=[_writer, _reader, _lister],
-        llm=reasoning_llm,
-        verbose=True,
-    )
-
     agents = {
         "theorist": theorist,
         "sound_designer": sound_designer,
         "producer": producer,
         "mix_engineer": mix_engineer,
-        "qa_linter": qa_linter,
     }
-
-    if audio_llm is not None:
-        audio_critic = Agent(
-            role="Audio Quality Critic and Analyzer",
-            goal=(
-                "Listen to and analyze the rendered WAV audio files. "
-                "Evaluate the following qualities of the Melodic Techno track: "
-                "1) Kick drum: Is it punchy and present? Does it sit around 40-60Hz? "
-                "2) Bass: Does it have body and movement? Is it sidechained properly? "
-                "3) Mix balance: Are the stems balanced? Is there frequency masking? "
-                "4) Overall: Does it sound like professional Melodic Techno? "
-                "Provide a structured critique with a score from 1-10 for each element. "
-                "If the score is below 6 on any element, flag it for re-generation."
-            ),
-            backstory=(
-                "You are an audio engineer and music critic with deep expertise in Melodic Techno production. "
-                "You can perceive nuances in frequency balance, stereo imaging, and dynamic range. "
-                "You listen to the actual audio content and provide actionable feedback. "
-                "You are familiar with the sonic signatures of labels like Afterlife, Diynamic, and Innervisions."
-            ),
-            tools=[_reader, _lister],
-            llm=audio_llm,
-            verbose=True,
-        )
-        agents["audio_critic"] = audio_critic
 
     return agents

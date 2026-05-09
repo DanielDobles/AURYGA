@@ -143,11 +143,27 @@ def orchestrate_agents(settings: Settings, user_prompt: str):
         status.status = "done"
         status.stop()
 
+def sanitize_workspace():
+    WORKSPACE = Path("./workspace")
+    console.print("[dim]Running static Python linter on workspace...[/dim]")
+    for scd in WORKSPACE.glob("*.scd"):
+        content = scd.read_text(encoding="utf-8")
+        if "0.exit" not in content:
+            console.print(f"[yellow]Auto-fixing missing 0.exit; in {scd.name}[/yellow]")
+            scd.write_text(content.rstrip() + "\n0.exit;\n", encoding="utf-8")
+    for dsp in WORKSPACE.glob("*.dsp"):
+        content = dsp.read_text(encoding="utf-8")
+        if 'import("stdfaust.lib");' not in content:
+            console.print(f"[yellow]Auto-fixing missing import in {dsp.name}[/yellow]")
+            dsp.write_text('import("stdfaust.lib");\n' + content, encoding="utf-8")
+
 def compile_and_download(settings: Settings):
     console.print("\n[bold cyan]▶ PHASE 3:[/bold cyan] [white]Audio Synthesis and Mastering[/white]")
     WORKSPACE = Path("./workspace")
     RESULTS = Path("./results")
     RESULTS.mkdir(exist_ok=True)
+    
+    sanitize_workspace()
     
     controller = DropletController(
         host=settings.DROPLET_IP,
