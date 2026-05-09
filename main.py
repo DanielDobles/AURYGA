@@ -6,6 +6,9 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.prompt import Prompt
+import requests
+import time
 
 from auryga.config import Settings, build_coder_llm, build_reasoning_llm, build_audio_llm
 from auryga.crew.crew import build_crew
@@ -31,7 +34,7 @@ def banner() -> None:
     )
 
 
-def run_agents(settings: Settings) -> None:
+def run_agents(settings: Settings, user_prompt: str) -> None:
     console.print("\n[bold green]▶ Fase 1:[/bold green] Iniciando agentes CrewAI...\n")
 
     coder_llm = build_coder_llm(settings)
@@ -51,7 +54,7 @@ def run_agents(settings: Settings) -> None:
     console.print(model_table)
 
     crew = build_crew(coder_llm, reasoning_llm, audio_llm)
-    result = crew.kickoff()
+    result = crew.kickoff(inputs={"prompt": user_prompt})
     console.print("\n[bold green]✓ Fase 1 completa.[/bold green] Archivos generados en ./workspace/\n")
 
     if WORKSPACE.exists():
@@ -108,7 +111,27 @@ def main() -> None:
     console.print(f"[dim]Droplet:[/dim] {settings.DROPLET_IP}")
     console.print(f"[dim]SSH Key:[/dim] {settings.ssh_key_resolved}\n")
 
-    run_agents(settings)
+    if len(sys.argv) > 1:
+        user_prompt = " ".join(sys.argv[1:])
+        console.print(f"\n[bold cyan]Estilo seleccionado:[/bold cyan] {user_prompt}")
+    else:
+        user_prompt = Prompt.ask("\n[bold cyan]¿Qué estilo de track quieres crear?[/bold cyan]\n[dim](Ej: Techno oscuro a 128 BPM con pads espaciales o Groove rítmico percusivo)[/dim]")
+
+    with console.status("[bold yellow]Esperando a que los modelos en el Droplet estén online... (Esto puede tomar 1-2 minutos)[/bold yellow]") as status:
+        ready = False
+        while not ready:
+            try:
+                # Checar ambos endpoints
+                r_reason = requests.get(f"{settings.VLLM_REASONING_BASE}/models", timeout=3)
+                r_coder = requests.get(f"{settings.VLLM_API_BASE}/models", timeout=3)
+                if r_reason.status_code == 200 and r_coder.status_code == 200:
+                    ready = True
+            except requests.exceptions.RequestException:
+                time.sleep(5)
+    
+    console.print("[bold green]¡Modelos Online y listos![/bold green]\n")
+
+    run_agents(settings, user_prompt)
     run_remote(settings)
     summary()
 

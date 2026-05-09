@@ -56,7 +56,7 @@ class Settings:
 
 def build_coder_llm(settings: Settings) -> LLM:
     return LLM(
-        model=f"openai/{settings.VLLM_MODEL_NAME}",
+        model=f"hosted_vllm/{settings.VLLM_MODEL_NAME}",
         base_url=settings.VLLM_API_BASE,
         api_key="not-needed",
     )
@@ -64,7 +64,7 @@ def build_coder_llm(settings: Settings) -> LLM:
 
 def build_reasoning_llm(settings: Settings) -> LLM:
     return LLM(
-        model=f"openai/{settings.VLLM_REASONING_MODEL}",
+        model=f"hosted_vllm/{settings.VLLM_REASONING_MODEL}",
         base_url=settings.VLLM_REASONING_BASE,
         api_key="not-needed",
     )

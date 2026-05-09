@@ -7,6 +7,7 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
     theory_task = Task(
         description=(
             "Create a song_matrix.json for a Melodic Techno track.\n"
+            "User's creative direction: {prompt}\n"
             "Requirements:\n"
             "- BPM: choose between 124, 125, or 126\n"
             "- Scale: choose a minor, Dorian, or Phrygian scale with a specific root note\n"
