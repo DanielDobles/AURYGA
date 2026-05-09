@@ -30,28 +30,38 @@ def build_tasks(agents: dict[str, Agent]) -> list[Task]:
     for inst in instruments:
         design_tasks.append(Task(
             description=(
-                f"Read song_matrix.json. Write the Faust .dsp file for '{inst}.dsp'.\n"
-                f"MANDATORY METADATA: You MUST include `declare name \"{inst}\";` right after the import. This is strictly required for SuperCollider binding.\n"
-                "CRITICAL FAUST SYNTAX RULES (NO HALLUCINATIONS):\n"
-                "- Oscillators: Use `os.sawtooth(freq)`, `os.osc(freq)`, or `no.noise`.\n"
-                "- Envelopes: Use `en.adsr(attack, decay, sustain, release, gate)`. NO `envelope()`.\n"
-                "- Filters: Use `fi.lowpass(order, cutoff)`. Pipe it, do not pass signal as arg.\n"
-                "- Smoothing: Use `si.smoo`.\n"
-                "- Routing: `process = os.sawtooth(freq) : fi.lowpass(2, cutoff) * en.adsr(0.1,0.1,0.5,0.1,gate);`\n"
-                "- Every file MUST start with: `import(\"stdfaust.lib\");`\n"
-                "- Every file MUST end with a valid `process = ...;` block.\n"
-                f"MANDATORY: Use the `write_file` tool to save exactly ONE file named '{inst}.dsp'."
+                f"Read song_matrix.json. Define the DSP patch for '{inst}'.\n"
+                "CHOOSE ONE OF THESE PRE-BUILT ENGINES FROM THE VAULT:\n"
+                "1. AurygaDrum: For Kicks and Snares. Parameters: {freq (20-1000), decay (0.01-2), pitch_mod (0-1000), noise_mix (0-1), noise_cutoff (100-15000), drive (1-10)}\n"
+                "2. AurygaSubtractive: For Bass and Leads. Parameters: {freq (20-20k), cutoff (20-20k), res (0.1-10), env_mod (0-10k), atk, dec, sus, rel, osc_mix (0-1), detune (0-0.1)}\n"
+                "3. AurygaFM: For Bells and FM Bass/Pads. Parameters: {freq, ratio (0.1-10), index (0-10), atk, dec, sus, rel}\n"
+                "4. AurygaMinimoog: Classic 3-oscillator Moog emulation with 24dB ladder filter (from GitHub). Parameters: {freq, cutoff, res (0-1), atk, dec, sus, rel, detune2, detune3}\n"
+                "Write a valid JSON object describing the chosen engine and its exact parameter values for this instrument to achieve a Melodic Techno sound.\n"
+                "Example Format:\n"
+                "{\n"
+                '  "engine": "AurygaDrum",\n'
+                '  "parameters": {\n'
+                '    "freq": 45,\n'
+                '    "decay": 0.8,\n'
+                '    ... \n'
+                '  }\n'
+                "}\n"
+                f"MANDATORY: Use the `write_file` tool to save exactly ONE file named 'patch_{inst}.json'. Do NOT write Faust code."
             ),
-            expected_output=f"{inst}.dsp written to workspace.",
+            expected_output=f"patch_{inst}.json written to workspace.",
             agent=agents["sound_designer"],
             context=[theory_task],
         ))
 
         produce_tasks.append(Task(
             description=(
-                f"Read song_matrix.json and {inst}.dsp. Write the SuperCollider .scd file for 'seq_{inst}.scd'.\n"
-                f"1. SynthDef MUST wrap the Faust UGen named EXACTLY '{inst}' (from the declare name directive).\n"
-                "2. Create a rhythmic sequence based on song_matrix.json.\n"
+                f"Read song_matrix.json and patch_{inst}.json.\n"
+                f"Write the SuperCollider .scd file for 'seq_{inst}.scd'.\n"
+                f"1. Create a SynthDef named \\{inst}_synth that wraps the engine chosen in the JSON (e.g. AurygaDrum.ar(...args)). "
+                "   The Faust UGens in SC use the exact parameter names from the Faust file.\n"
+                "2. The SynthDef MUST expose the parameters defined in the patch JSON as SynthDef arguments.\n"
+                f"3. Create a rhythmic Score sequence for the '{inst}' based on song_matrix.json.\n"
+                f"4. The Score OSC messages MUST pass the parameter values from the patch JSON into the synth triggers.\n"
                 "CRITICAL RULES:\n"
                 "- Calculate beat duration: beatDur = 60 / BPM\n"
                 "- Use Score([ ... ]) with explicit OSC messages.\n"

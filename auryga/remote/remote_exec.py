@@ -100,8 +100,11 @@ class DropletController:
     def upload_workspace(self, local_dir: Path) -> None:
         assert self._sftp is not None
         files = [f for f in local_dir.iterdir() if f.is_file()]
-        if not files:
-            raise FileNotFoundError(f"No files to upload in {local_dir}")
+        
+        vault_dir = Path("auryga/vault")
+        vault_files = [f for f in vault_dir.iterdir() if f.is_file()] if vault_dir.exists() else []
+        
+        all_files = files + vault_files
 
         self._mkdir_remote(self.REMOTE_BASE)
         self.clean_remote_cache()
@@ -112,30 +115,29 @@ class DropletController:
             BarColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("Uploading workspace", total=len(files))
-            for f in files:
+            task = progress.add_task("Uploading files", total=len(all_files))
+            for f in all_files:
                 remote = self.REMOTE_BASE / f.name
                 self._sftp.put(str(f), str(remote))
                 progress.update(task, advance=1, description=f"Uploading {f.name}")
 
-        console.print(f"[green]Uploaded {len(files)} files → {self.REMOTE_BASE}[/green]")
+        console.print(f"[green]Uploaded {len(all_files)} files → {self.REMOTE_BASE}[/green]")
 
     def compile_faust(self) -> None:
-        console.print("[bold cyan]Compiling Faust DSP files...[/bold cyan]")
-        out = self._exec(f"ls {self.REMOTE_BASE}/*.dsp 2>/dev/null || echo NONE")
+        console.print("[bold cyan]Compiling Faust DSP Vault...[/bold cyan]")
+        out = self._exec(f"ls {self.REMOTE_BASE}/Auryga*.dsp 2>/dev/null || echo NONE")
         if "NONE" in out:
-            console.print("[yellow]No .dsp files found — skipping Faust compilation[/yellow]")
+            console.print("[yellow]No vault DSP files found — skipping Faust compilation[/yellow]")
             return
 
         dsp_files = [line.strip() for line in out.strip().splitlines() if line.strip().endswith(".dsp")]
         for dsp in dsp_files:
             name = PurePosixPath(dsp).stem
             tips = [
-                f"Compiling {name}.dsp in C++ backend...",
+                f"Compiling Vault Engine: {name}.dsp...",
                 f"Translating Faust architecture to LLVM...",
                 f"Generating UGen class '{name}' for SuperCollider...",
-                f"Optimizing audio subgraphs for ROCm...",
-                f"Resolving stdfaust.lib dependencies..."
+                f"Optimizing audio subgraphs for ROCm..."
             ]
             self._exec(
                 f"cd {self.REMOTE_BASE} && faust2supercollider {dsp}",

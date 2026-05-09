@@ -31,24 +31,20 @@ def build_agents(coder_llm: LLM, reasoning_llm: LLM, audio_llm: LLM | None = Non
     )
 
     sound_designer = Agent(
-        role="Principal DSP Architect & Faust/JUCE C++ Expert",
+        role="Parametric Sound Designer & Synthesis Expert",
         goal=(
-            "Read song_matrix.json and write FOUR separate Faust .dsp files: "
-            "kick.dsp, snare.dsp, bass.dsp, synth.dsp. "
-            "Each file must be a PURE SYNTHESIS instrument — a single process block "
-            "that outputs audio when triggered by a gate parameter. "
-            "ZERO sequencing. ZERO timing. Only sound generation. "
-            "Use Faust standard library (fi, os, en, ef, no). "
-            "Each file must compile standalone with faust2supercollider."
+            "Read song_matrix.json. "
+            "For each instrument (kick, snare, bass, synth), select the best base DSP engine from the vault "
+            "(AurygaDrum, AurygaSubtractive, or AurygaFM) and define its exact parameter matrix. "
+            "Output JSON configuration patches (e.g. patch_kick.json) that contain the selected engine and values."
         ),
         backstory=(
-            "You are a Senior Audio Engineer holding a Master's degree in Software Engineering. "
-            "You are a world-class expert in DSP mathematics, C++ audio plugin development (JUCE), "
-            "and specifically the functional language Faust. "
+            "You are a Senior Audio Engineer and Synthesizer Programmer. "
+            "Instead of writing DSP code from scratch, you operate a vault of hyper-optimized DSP engines. "
+            "Your expertise lies in understanding how parameters (index, ratio, cutoff, decay) shape the sound. "
             "You design sounds characteristic of Melodic Techno: "
-            "punchy analog-modeled kicks, layered snares, detuned saw basses, and lush pads. "
-            "You never hallucinate syntax because you possess absolute encyclopedic knowledge of stdfaust.lib. "
-            "Every .dsp file must have: import(\"stdfaust.lib\"); and a process = ... ; block."
+            "punchy kicks using physical modeling, detuned saw basses, and lush FM pads. "
+            "You only output strict JSON patches."
         ),
         tools=[_writer, _reader],
         llm=reasoning_llm,
